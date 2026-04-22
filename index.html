@@ -43,6 +43,7 @@
           <p class="eyebrow">Now Curated</p>
           <h1 id="songTitle">私人 DJ 电台</h1>
           <p id="songMeta">导入歌单，选择场景，让系统生成你的播放队列。</p>
+          <div class="on-air-line"><span></span> ON AIR <i aria-hidden="true"></i></div>
         </section>
 
         <div class="audio-shell">
@@ -133,6 +134,12 @@
           <span>歌单文本</span>
           <textarea id="playlistText" rows="6" placeholder="晴天,周杰伦,华语|怀旧|晴朗,64,https://example.com/preview.mp3"></textarea>
         </label>
+
+        <label class="field terminal-field">
+          <span>给当前歌曲绑定音频 URL</span>
+          <input id="audioUrlInput" type="url" placeholder="https://example.com/song.mp3" />
+        </label>
+        <button id="attachUrlButton" type="button">绑定到当前歌曲</button>
 
         <button id="importButton" type="button">上传到后端</button>
       </section>

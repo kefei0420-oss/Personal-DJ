@@ -14,6 +14,8 @@ const els = {
   energy: document.querySelector("#energyInput"),
   energyValue: document.querySelector("#energyValue"),
   prompt: document.querySelector("#promptInput"),
+  audioUrl: document.querySelector("#audioUrlInput"),
+  attachUrlButton: document.querySelector("#attachUrlButton"),
   title: document.querySelector("#songTitle"),
   meta: document.querySelector("#songMeta"),
   initial: document.querySelector("#coverInitial"),
@@ -63,6 +65,7 @@ function setNowPlaying(song) {
   els.meta.textContent = `${song.artist} · ${song.tags.join(" / ") || "未标标签"} · 能量 ${song.energy}`;
   els.initial.textContent = song.title.slice(0, 2).toUpperCase();
   els.audio.src = song.audioUrl || "";
+  els.audioUrl.value = song.audioUrl || "";
   els.progress.style.width = "0%";
   els.currentTime.textContent = "00:00";
   els.duration.textContent = song.audioUrl ? "loading" : "no audio";
@@ -159,6 +162,26 @@ els.file.addEventListener("change", async (event) => {
 els.importButton.addEventListener("click", importPlaylist);
 els.sampleButton.addEventListener("click", loadSample);
 els.generateButton.addEventListener("click", generateRadio);
+
+els.attachUrlButton.addEventListener("click", () => {
+  const song = queue[currentIndex];
+  const audioUrl = els.audioUrl.value.trim();
+
+  if (!song) {
+    els.reason.textContent = "先生成一段推荐队列，再给当前歌曲绑定音频 URL。";
+    return;
+  }
+
+  if (!audioUrl) {
+    els.reason.textContent = "请粘贴一个可以直接访问的音频 URL，例如 mp3/m4a/wav 文件地址。";
+    return;
+  }
+
+  song.audioUrl = audioUrl;
+  setNowPlaying(song);
+  renderQueue();
+  els.reason.textContent = "已绑定音频 URL。如果链接允许浏览器访问，就可以直接在这里播放。";
+});
 
 els.locationButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
