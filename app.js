@@ -1,6 +1,7 @@
 let queue = [];
 let currentIndex = 0;
 let selectedMood = "focus";
+let userLocation = null;
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
@@ -31,6 +32,7 @@ const els = {
   now: document.querySelector("#nowText"),
   weather: document.querySelector("#weatherText"),
   state: document.querySelector("#stateText"),
+  locationButton: document.querySelector("#locationButton"),
 };
 
 async function api(path, options = {}) {
@@ -96,7 +98,8 @@ function renderQueue() {
 }
 
 async function loadContext() {
-  const data = await api("/api/now");
+  const params = userLocation ? `?lat=${userLocation.lat}&lon=${userLocation.lon}` : "";
+  const data = await api(`/api/now${params}`);
   els.clock.textContent = data.time;
   els.now.textContent = `${data.partOfDay} · ${data.weekday}`;
   els.weather.textContent = data.weather.summary;
@@ -156,6 +159,31 @@ els.file.addEventListener("change", async (event) => {
 els.importButton.addEventListener("click", importPlaylist);
 els.sampleButton.addEventListener("click", loadSample);
 els.generateButton.addEventListener("click", generateRadio);
+
+els.locationButton.addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    els.reason.textContent = "这个浏览器不支持定位。可以继续用默认城市天气。";
+    return;
+  }
+
+  els.locationButton.textContent = "正在获取位置...";
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      userLocation = {
+        lat: position.coords.latitude.toFixed(5),
+        lon: position.coords.longitude.toFixed(5),
+      };
+      await loadContext();
+      await generateRadio();
+      els.locationButton.textContent = "已使用当前位置天气";
+    },
+    () => {
+      els.locationButton.textContent = "使用当前位置天气";
+      els.reason.textContent = "没有拿到定位权限，先继续使用默认城市天气。";
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 },
+  );
+});
 
 els.play.addEventListener("click", async () => {
   const song = queue[currentIndex];

@@ -144,7 +144,19 @@ function getPartOfDay(hour) {
   return "深夜";
 }
 
-async function fetchWeather() {
+async function resolveWeatherLocation(url) {
+  const lat = Number(url.searchParams.get("lat"));
+  const lon = Number(url.searchParams.get("lon"));
+
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    return {
+      name: "当前位置",
+      latitude: lat,
+      longitude: lon,
+      source: "browser-location",
+    };
+  }
+
   const city = process.env.WEATHER_CITY || "Shanghai";
 
   const geoUrl = new URL("https://geocoding-api.open-meteo.com/v1/search");
@@ -163,6 +175,17 @@ async function fetchWeather() {
   if (!location) {
     throw new Error(`找不到城市：${city}`);
   }
+
+  return {
+    name: location.name || city,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    source: "city",
+  };
+}
+
+async function fetchWeather(url = new URL("http://localhost/api/weather")) {
+  const location = await resolveWeatherLocation(url);
 
   const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
   weatherUrl.searchParams.set("latitude", String(location.latitude));
@@ -193,8 +216,9 @@ async function fetchWeather() {
 
   return {
     source: "open-meteo",
-    city: location.name || city,
-    summary: `${location.name || city} · ${description} · ${temp}°C · 湿度 ${humidity}%`,
+    city: location.name,
+    locationSource: location.source,
+    summary: `${location.name} · ${description} · ${temp}°C · 湿度 ${humidity}%`,
     tags,
     raw: {
       weatherCode,
@@ -223,10 +247,10 @@ function describeWeatherCode(code, cloudCover, precipitation) {
   return "天气稳定";
 }
 
-async function getNowContext() {
+async function getNowContext(url = new URL("http://localhost/api/now")) {
   const now = new Date();
   const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()];
-  lastWeather = await fetchWeather().catch((error) => ({
+  lastWeather = await fetchWeather(url).catch((error) => ({
     source: "error",
     city: process.env.WEATHER_CITY || "Shanghai",
     summary: `天气 API 暂时失败：${error.message}`,
@@ -312,12 +336,12 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/now") {
-    sendJson(res, 200, await getNowContext());
+    sendJson(res, 200, await getNowContext(url));
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/api/weather") {
-    sendJson(res, 200, await fetchWeather());
+    sendJson(res, 200, await fetchWeather(url));
     return;
   }
 

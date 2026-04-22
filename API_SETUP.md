@@ -80,7 +80,9 @@ WEATHER_CITY
 
 ```text
 GET /api/weather
+GET /api/weather?lat=31.2304&lon=121.4737
 GET /api/now
+GET /api/now?lat=31.2304&lon=121.4737
 ```
 
 然后把天气加入 `/api/radio/generate` 的推荐参数。
@@ -92,6 +94,8 @@ WEATHER_CITY=Shanghai
 ```
 
 保存并重新部署后，页面里的“今天的场景信号”会显示真实天气，推荐理由里也会加入天气标签。
+
+页面里也有“使用当前位置天气”按钮。用户同意浏览器定位后，前端会把经纬度传给后端，后端用经纬度查天气；如果用户拒绝定位，就继续使用 `WEATHER_CITY`。
 
 Open-Meteo 官方说明：非商业/原型阶段可以免费使用，不需要 API key。城市名会先通过 Geocoding API 转成经纬度，再调用 Forecast API。
 
