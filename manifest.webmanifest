@@ -1,0 +1,9 @@
+{
+  "name": "私人 DJ 电台",
+  "short_name": "private.fm",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050606",
+  "theme_color": "#050606",
+  "description": "读取你的歌单并生成私人 DJ 电台。"
+}

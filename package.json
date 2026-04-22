@@ -1,0 +1,12 @@
+{
+  "name": "private-dj-radio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A personal DJ radio prototype that imports playlists and generates a curated queue.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

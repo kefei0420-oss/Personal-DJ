@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>私人 DJ 电台</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="hero-player" aria-label="私人 DJ 播放器">
+        <nav class="nav">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>private.fm</span>
+          </div>
+          <span id="apiStatus" class="status-pill">API offline</span>
+        </nav>
+
+        <section class="record-stage">
+          <div class="vinyl" id="vinyl">
+            <div class="vinyl-label">
+              <span id="coverInitial">DJ</span>
+            </div>
+          </div>
+          <div class="needle" aria-hidden="true"></div>
+        </section>
+
+        <section class="track-display" aria-live="polite">
+          <p class="eyebrow">Now Curated</p>
+          <h1 id="songTitle">私人 DJ 电台</h1>
+          <p id="songMeta">读取你的歌单，然后按心情、时间、能量生成播放队列</p>
+        </section>
+
+        <div class="audio-shell">
+          <audio id="audioPlayer" preload="metadata"></audio>
+          <div class="progress">
+            <span id="progressFill"></span>
+          </div>
+          <div class="time-row">
+            <span id="currentTime">00:00</span>
+            <span id="duration">00:00</span>
+          </div>
+        </div>
+
+        <div class="transport">
+          <button id="prevButton" type="button" title="上一首">‹</button>
+          <button id="playButton" type="button" class="play" title="播放/暂停">▶</button>
+          <button id="nextButton" type="button" title="下一首">›</button>
+        </div>
+
+        <section class="dj-note">
+          <p>DJ Note</p>
+          <span id="djReason">先导入歌单，或者直接用示例华语歌单试一下。</span>
+        </section>
+      </section>
+
+      <section class="studio">
+        <div class="panel headline-panel">
+          <p class="eyebrow">Music Intelligence Console</p>
+          <h2>把你的歌单调成一段私人电台</h2>
+          <p>导入歌单，告诉它你现在的心情和能量，后端会像 DJ 一样排出一段适合当前场景的播放队列。</p>
+        </div>
+
+        <div class="panel context-panel">
+          <div class="panel-title">
+            <h3>今天的场景信号</h3>
+            <span id="clockText">--:--</span>
+          </div>
+          <div class="context-strip">
+            <div>
+              <small>Now</small>
+              <b id="nowText">loading</b>
+            </div>
+            <div>
+              <small>Weather</small>
+              <b id="weatherText">未连接</b>
+            </div>
+            <div>
+              <small>State</small>
+              <b id="stateText">local memory</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <h3>1. 导入歌单</h3>
+            <button id="loadSampleButton" type="button" class="ghost-button">载入华语示例</button>
+          </div>
+
+          <label class="file-drop">
+            <input id="playlistFile" type="file" accept=".csv,.json,.txt" />
+            <span>选择 CSV / JSON / TXT</span>
+            <small>支持 title, artist, tags, energy, audioUrl</small>
+          </label>
+
+          <label class="field">
+            <span>歌单文本</span>
+            <textarea id="playlistText" rows="8" placeholder="晴天,周杰伦,华语|怀旧|晴朗,64,https://example.com/preview.mp3"></textarea>
+          </label>
+
+          <button id="importButton" type="button">上传到后端</button>
+        </div>
+
+        <div class="panel">
+          <h3>2. 电台参数</h3>
+          <div class="mood-grid" id="moodGrid" role="radiogroup" aria-label="心情">
+            <button type="button" class="mood active" data-mood="focus">专注</button>
+            <button type="button" class="mood" data-mood="night">夜晚</button>
+            <button type="button" class="mood" data-mood="happy">开心</button>
+            <button type="button" class="mood" data-mood="sad">低落</button>
+            <button type="button" class="mood" data-mood="workout">运动</button>
+          </div>
+
+          <label class="field">
+            <span>目标能量 <b id="energyValue">55</b></span>
+            <input id="energyInput" type="range" min="0" max="100" value="55" />
+          </label>
+
+          <label class="field">
+            <span>给 DJ 的一句话</span>
+            <input id="promptInput" type="text" placeholder="比如：今晚想听不吵但有节奏的华语歌" />
+          </label>
+
+          <button id="generateButton" type="button">生成电台队列</button>
+        </div>
+
+        <div class="panel queue-panel">
+          <div class="panel-title">
+            <h3>推荐队列</h3>
+            <span id="songCount">0 首</span>
+          </div>
+          <ol id="queueList"></ol>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
