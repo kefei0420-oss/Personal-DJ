@@ -1,12 +1,17 @@
 let userLocation = null;
-let soundEngine = null;
+let lastMoodcast = null;
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
+  engineBadge: document.querySelector("#engineBadge"),
   clock: document.querySelector("#clockText"),
   now: document.querySelector("#nowText"),
   weather: document.querySelector("#weatherText"),
   state: document.querySelector("#stateText"),
+  agentState: document.querySelector("#agentState"),
+  routeText: document.querySelector("#routeText"),
+  intakePreview: document.querySelector("#intakePreview"),
+  ambientProfile: document.querySelector("#ambientProfile"),
   locationButton: document.querySelector("#locationButton"),
   moodInput: document.querySelector("#moodInput"),
   energyInput: document.querySelector("#energyInput"),
@@ -20,17 +25,23 @@ const els = {
   weatherOrb: document.querySelector("#weatherOrb"),
   energyScore: document.querySelector("#energyScore"),
   energyFill: document.querySelector("#energyFill"),
+  stressScore: document.querySelector("#stressScore"),
+  stressFill: document.querySelector("#stressFill"),
   signalNote: document.querySelector("#signalNote"),
   moodTag: document.querySelector("#moodTag"),
   actionText: document.querySelector("#actionText"),
   careText: document.querySelector("#careText"),
+  heroSongCount: document.querySelector("#heroSongCount"),
+  heroSongStrip: document.querySelector("#heroSongStrip"),
+  songCount: document.querySelector("#songCount"),
   songList: document.querySelector("#songList"),
-  soundStatus: document.querySelector("#soundStatus"),
-  soundToggle: document.querySelector("#soundToggle"),
-  soundModes: document.querySelectorAll(".sound-mode"),
-  soundVolume: document.querySelector("#soundVolume"),
-  soundVolumeValue: document.querySelector("#soundVolumeValue"),
+  chatState: document.querySelector("#chatState"),
+  chatLog: document.querySelector("#chatLog"),
+  chatInput: document.querySelector("#chatInput"),
+  chatSend: document.querySelector("#chatSend"),
 };
+
+let engineMode = "local";
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -55,11 +66,53 @@ async function loadContext() {
   els.clock.textContent = data.time;
   els.now.textContent = `${data.partOfDay} · ${data.weekday}`;
   els.weather.textContent = data.weather.summary;
-  els.state.textContent = "mood engine";
+  els.state.textContent = engineMode === "ai" ? "ai agent route" : "local mood route";
   return data;
 }
 
+async function loadConnectors() {
+  try {
+    const data = await api("/api/connectors");
+    const moodEngine = data.connectors?.find((item) => item.key === "mood_engine");
+    engineMode = moodEngine?.status === "ready" ? "ai" : "local";
+  } catch {
+    engineMode = "local";
+  }
+
+  els.engineBadge.textContent = engineMode === "ai" ? "ai enabled" : "local fallback";
+  els.engineBadge.classList.toggle("online", engineMode === "ai");
+}
+
+function updateAgentState(text, route) {
+  els.agentState.textContent = text;
+  if (route) {
+    els.routeText.textContent = route;
+  }
+}
+
+function updateInputTrace() {
+  const text = els.moodInput.value.trim();
+  const preview = text || "等待输入。Agent 会结合文本、能量、压力与天气信号。";
+  els.intakePreview.textContent = preview.length > 120 ? `${preview.slice(0, 120)}...` : preview;
+  els.stressScore.textContent = els.stressInput.value;
+  els.stressFill.style.width = `${els.stressInput.value}%`;
+}
+
+function deriveAmbientProfile(data) {
+  const moodLabel = data.forecast?.mood || "calm";
+  return `chat-forward console / ${moodLabel} route / netease suggestion link`;
+}
+
+function renderHeroSongs(songs) {
+  els.heroSongCount.textContent = `${songs.length} tracks`;
+  els.heroSongStrip.innerHTML = songs
+    .slice(0, 4)
+    .map((song) => `<span class="hero-song-chip">${song.title} - ${song.artist}</span>`)
+    .join("");
+}
+
 function renderMoodcast(data) {
+  lastMoodcast = data;
   els.forecastTitle.textContent = data.forecast.title;
   els.forecastSummary.textContent = data.forecast.summary;
   els.weatherIcon.textContent = data.forecast.icon;
@@ -70,6 +123,17 @@ function renderMoodcast(data) {
   els.moodTag.textContent = data.forecast.mood;
   els.actionText.textContent = data.advice.action;
   els.careText.textContent = data.advice.care;
+  els.songCount.textContent = `${data.songs.length} tracks`;
+  renderHeroSongs(data.songs);
+  els.ambientProfile.textContent = deriveAmbientProfile(data);
+  updateAgentState(
+    data.note.includes("AI 暂时不可用") ? "fallback route active" : engineMode === "ai" ? "ai response locked" : "local response locked",
+    data.note.includes("AI 暂时不可用")
+      ? "ai upstream unavailable -> local fallback"
+      : engineMode === "ai"
+        ? "ai mood engine -> care output -> netease search"
+        : "local rules -> care output -> netease search",
+  );
   els.songList.innerHTML = "";
 
   data.songs.forEach((song, index) => {
@@ -108,146 +172,110 @@ function renderMoodcast(data) {
   });
 }
 
-function createNoiseBuffer(audioContext) {
-  const duration = 3;
-  const frameCount = audioContext.sampleRate * duration;
-  const buffer = audioContext.createBuffer(1, frameCount, audioContext.sampleRate);
-  const data = buffer.getChannelData(0);
-  let previous = 0;
+function appendChatMessage(role, text) {
+  const item = document.createElement("article");
+  item.className = `chat-bubble ${role}`;
+  item.innerHTML = `
+    <small>${role === "assistant" ? "MOODCAST Agent" : "You"}</small>
+    <p>${text}</p>
+  `;
+  els.chatLog.appendChild(item);
+  els.chatLog.scrollTop = els.chatLog.scrollHeight;
+}
 
-  for (let index = 0; index < frameCount; index += 1) {
-    const white = Math.random() * 2 - 1;
-    previous = previous * 0.92 + white * 0.08;
-    data[index] = previous * 0.7;
+function composeChatReply(question, moodcast) {
+  const mood = moodcast.forecast.title;
+  const songNames = moodcast.songs.slice(0, 2).map((song) => `${song.title} - ${song.artist}`).join(" / ");
+  const lower = question.toLowerCase();
+
+  if (lower.includes("休息") || lower.includes("继续") || lower.includes("推进")) {
+    return `如果按你现在的情绪天气「${mood}」来看，我会建议先按「${moodcast.advice.action}」做一个小动作，再决定要不要继续推进。现在更重要的是保住节奏，而不是硬顶。顺手可以把 ${songNames} 放进待听清单。`;
   }
 
-  return buffer;
-}
-
-function volumeToGain(volume) {
-  const normalized = Math.max(0, Math.min(35, Number(volume))) / 35;
-  return normalized * normalized * 0.18;
-}
-
-function createSoundEngine() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return null;
-
-  const audioContext = new AudioContext();
-  const source = audioContext.createBufferSource();
-  const highpass = audioContext.createBiquadFilter();
-  const filter = audioContext.createBiquadFilter();
-  const gain = audioContext.createGain();
-
-  source.buffer = createNoiseBuffer(audioContext);
-  source.loop = true;
-  highpass.type = "highpass";
-  highpass.frequency.value = 80;
-  source.connect(highpass);
-  highpass.connect(filter);
-  filter.connect(gain);
-  gain.connect(audioContext.destination);
-  gain.gain.value = 0;
-  source.start();
-
-  return {
-    audioContext,
-    highpass,
-    filter,
-    gain,
-    mode: "rain",
-    active: false,
-  };
-}
-
-function configureSound(mode) {
-  if (!soundEngine) return;
-
-  const { audioContext, filter, gain } = soundEngine;
-  soundEngine.mode = mode;
-
-  const settings = {
-    rain: { type: "bandpass", frequency: 920, q: 0.45 },
-    wind: { type: "lowpass", frequency: 320, q: 0.35 },
-    fan: { type: "lowpass", frequency: 180, q: 0.8 },
-  }[mode];
-
-  filter.type = settings.type;
-  filter.frequency.setTargetAtTime(settings.frequency, audioContext.currentTime, 0.08);
-  filter.Q.setTargetAtTime(settings.q, audioContext.currentTime, 0.08);
-  gain.gain.setTargetAtTime(soundEngine.active ? volumeToGain(els.soundVolume.value) : 0, audioContext.currentTime, 0.12);
-}
-
-function updateSoundUi() {
-  const active = Boolean(soundEngine?.active);
-  els.soundToggle.textContent = active ? "暂停环境声" : "启动柔和底噪";
-  els.soundToggle.setAttribute("aria-pressed", String(active));
-  els.soundStatus.textContent = active ? soundEngine.mode : "muted";
-  els.soundVolumeValue.textContent = els.soundVolume.value;
-}
-
-async function toggleSound() {
-  if (!soundEngine) {
-    soundEngine = createSoundEngine();
-    if (!soundEngine) {
-      els.signalNote.textContent = "这个浏览器暂时不支持 Web Audio 环境声。";
-      return;
-    }
-    configureSound(soundEngine.mode);
+  if (lower.includes("为什么") || lower.includes("怎么")) {
+    return `我是根据你刚才的文字、能量、压力和天气信号综合判断的，所以这次把你放在「${mood}」这条路线上。最关键的原因是：${moodcast.forecast.summary} 对应的落地动作是「${moodcast.advice.action}」，care 提醒是「${moodcast.advice.care}」。`;
   }
 
-  if (soundEngine.audioContext.state === "suspended") {
-    await soundEngine.audioContext.resume();
-  }
+  return `我听见你了。按这次的情绪天气「${mood}」来看，先别急着把自己推到很满。你可以先做这一步：${moodcast.advice.action}。如果想让今天更顺一点，我会提醒你：${moodcast.advice.care}。音乐上我更偏向 ${songNames} 这种气质。`;
+}
 
-  soundEngine.active = !soundEngine.active;
-  configureSound(soundEngine.mode);
-  updateSoundUi();
+async function sendChat() {
+  const question = els.chatInput.value.trim();
+  if (!question) return;
+
+  appendChatMessage("user", question);
+  els.chatInput.value = "";
+  els.chatSend.disabled = true;
+  els.chatState.textContent = "thinking";
+
+  try {
+    const context = await loadContext();
+    const moodcast = await api("/api/moodcast", {
+      method: "POST",
+      body: JSON.stringify({
+        text: question || els.moodInput.value,
+        energy: Number(els.energyInput.value),
+        stress: Number(els.stressInput.value),
+        weather: context.weather,
+        now: context,
+      }),
+    });
+    renderMoodcast(moodcast);
+    appendChatMessage("assistant", composeChatReply(question, moodcast));
+    els.chatState.textContent = engineMode === "ai" ? "ai reply" : "local reply";
+  } catch (error) {
+    appendChatMessage("assistant", `我这边刚刚没接稳，不过先给你一句短答：慢一点，但别断线。报错是 ${error.message}。`);
+    els.chatState.textContent = "error";
+  } finally {
+    els.chatSend.disabled = false;
+  }
 }
 
 async function generateMoodcast() {
+  updateAgentState(
+    engineMode === "ai" ? "agent analyzing emotional signal" : "local engine analyzing signal",
+    engineMode === "ai" ? "context ingest -> ai reasoning -> response shaping" : "context ingest -> local rules -> response shaping",
+  );
+  els.generateButton.disabled = true;
+  els.generateButton.textContent = engineMode === "ai" ? "agent is thinking..." : "local engine running...";
   const context = await loadContext();
-  const data = await api("/api/moodcast", {
-    method: "POST",
-    body: JSON.stringify({
-      text: els.moodInput.value,
-      energy: Number(els.energyInput.value),
-      stress: Number(els.stressInput.value),
-      weather: context.weather,
-      now: context,
-    }),
-  });
+  try {
+    const data = await api("/api/moodcast", {
+      method: "POST",
+      body: JSON.stringify({
+        text: els.moodInput.value,
+        energy: Number(els.energyInput.value),
+        stress: Number(els.stressInput.value),
+        weather: context.weather,
+        now: context,
+      }),
+    });
 
-  renderMoodcast(data);
+    renderMoodcast(data);
+  } finally {
+    els.generateButton.disabled = false;
+    els.generateButton.textContent = "启动情绪 agent";
+  }
 }
 
 els.energyInput.addEventListener("input", () => {
   els.energyValue.textContent = els.energyInput.value;
+  updateInputTrace();
 });
 
 els.stressInput.addEventListener("input", () => {
   els.stressValue.textContent = els.stressInput.value;
+  updateInputTrace();
 });
+
+els.moodInput.addEventListener("input", updateInputTrace);
 
 els.generateButton.addEventListener("click", generateMoodcast);
-
-els.soundToggle.addEventListener("click", toggleSound);
-
-els.soundVolume.addEventListener("input", () => {
-  els.soundVolumeValue.textContent = els.soundVolume.value;
-  if (soundEngine) configureSound(soundEngine.mode);
-});
-
-els.soundModes.forEach((button) => {
-  button.addEventListener("click", () => {
-    els.soundModes.forEach((modeButton) => modeButton.classList.remove("active"));
-    button.classList.add("active");
-    if (!soundEngine) {
-      soundEngine = createSoundEngine();
-    }
-    configureSound(button.dataset.sound);
-    updateSoundUi();
-  });
+els.chatSend.addEventListener("click", sendChat);
+els.chatInput.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    sendChat();
+  }
 });
 
 els.locationButton.addEventListener("click", () => {
@@ -265,6 +293,7 @@ els.locationButton.addEventListener("click", () => {
       };
       await loadContext();
       els.locationButton.textContent = "已使用当前位置天气";
+      updateAgentState("live weather synced", els.routeText.textContent);
     },
     () => {
       els.locationButton.textContent = "使用当前位置天气";
@@ -276,10 +305,14 @@ els.locationButton.addEventListener("click", () => {
 
 async function boot() {
   try {
+    await loadConnectors();
     await api("/api/health");
     els.apiStatus.textContent = "API online";
     els.apiStatus.classList.add("online");
     await loadContext();
+    updateInputTrace();
+    updateAgentState(engineMode === "ai" ? "ai agent ready" : "local engine ready", engineMode === "ai" ? "ai mood engine standby" : "local mood route");
+    appendChatMessage("assistant", "我在。你可以直接说今天怎么了，或者问我现在更适合推进、恢复，还是先停一下。");
     renderMoodcast(await api("/api/moodcast", {
       method: "POST",
       body: JSON.stringify({
@@ -291,6 +324,9 @@ async function boot() {
   } catch (error) {
     els.apiStatus.textContent = "API offline";
     els.signalNote.textContent = "后端没有启动。请运行 node server.js，然后打开 http://localhost:3000";
+    els.engineBadge.textContent = "engine offline";
+    updateAgentState("agent unavailable", "backend not responding");
+    appendChatMessage("assistant", "我现在离线了，后端起来以后我就能继续和你聊。");
   }
 }
 
