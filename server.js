@@ -6,6 +6,8 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
 
 let lastWeather = null;
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -229,7 +231,7 @@ function pickMood(text, energy, stress, weatherTags = []) {
   return stress > 55 ? "focus" : "calm";
 }
 
-function buildMoodcast({ text, energy, stress, weather, now }) {
+function buildRuleMoodcast({ text, energy, stress, weather, now }) {
   const safeEnergy = Math.max(0, Math.min(100, Number(energy || 50)));
   const safeStress = Math.max(0, Math.min(100, Number(stress || 45)));
   const weatherTags = weather?.tags || [];
@@ -293,6 +295,110 @@ function buildMoodcast({ text, energy, stress, weather, now }) {
     note: `${weatherLine}。这是一份情绪天气，不是医疗诊断。`,
     songs: songPool[mood],
   };
+}
+
+function sanitizeAiMoodcast(payload, fallback) {
+  const safeSongs = Array.isArray(payload?.songs) && payload.songs.length
+    ? payload.songs.slice(0, 4).map((song, index) => ({
+        title: String(song?.title || fallback.songs[index]?.title || "未命名歌曲").trim(),
+        artist: String(song?.artist || fallback.songs[index]?.artist || "未知艺人").trim(),
+        lang: String(song?.lang || fallback.songs[index]?.lang || "Unknown").trim(),
+        reason: String(song?.reason || fallback.songs[index]?.reason || "适合当前状态").trim(),
+      }))
+    : fallback.songs;
+
+  return {
+    forecast: {
+      mood: String(payload?.forecast?.mood || fallback.forecast.mood).trim(),
+      title: String(payload?.forecast?.title || fallback.forecast.title).trim(),
+      icon: String(payload?.forecast?.icon || fallback.forecast.icon).trim().slice(0, 2) || fallback.forecast.icon,
+      summary: String(payload?.forecast?.summary || fallback.forecast.summary).trim(),
+    },
+    energy: Math.max(0, Math.min(100, Number(payload?.energy ?? fallback.energy))),
+    advice: {
+      action: String(payload?.advice?.action || fallback.advice.action).trim(),
+      care: String(payload?.advice?.care || fallback.advice.care).trim(),
+    },
+    note: String(payload?.note || fallback.note).trim(),
+    songs: safeSongs,
+  };
+}
+
+function extractJsonObject(text) {
+  const source = String(text || "").trim();
+  const start = source.indexOf("{");
+  const end = source.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("AI response did not contain JSON");
+  }
+  return JSON.parse(source.slice(start, end + 1));
+}
+
+async function buildAiMoodcast(input, fallback) {
+  const prompt = {
+    role: "system",
+    content: [
+      "You are MOODCAST, a gentle mood-weather agent.",
+      "Return only valid JSON.",
+      "Do not diagnose disease.",
+      "Keep the tone calm, concise, and emotionally accurate.",
+      "Recommend exactly 4 songs with only title, artist, lang, reason.",
+      "Prefer songs that are searchable on NetEase Cloud Music.",
+      "Schema:",
+      '{"forecast":{"mood":"calm|low|focus|bright|intense","title":"string","icon":"string","summary":"string"},"energy":0,"advice":{"action":"string","care":"string"},"note":"string","songs":[{"title":"string","artist":"string","lang":"string","reason":"string"}]}',
+    ].join(" "),
+  };
+
+  const user = {
+    role: "user",
+    content: JSON.stringify({
+      text: input.text || "",
+      energy: Number(input.energy || 50),
+      stress: Number(input.stress || 45),
+      weather: input.weather || null,
+      now: input.now || null,
+      fallbackMood: fallback.forecast.mood,
+    }),
+  };
+
+  const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.7,
+      messages: [prompt, user],
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI upstream ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  const parsed = typeof content === "string" ? extractJsonObject(content) : content;
+  return sanitizeAiMoodcast(parsed, fallback);
+}
+
+async function buildMoodcast(input) {
+  const fallback = buildRuleMoodcast(input);
+  if (!process.env.OPENAI_API_KEY) {
+    return fallback;
+  }
+
+  try {
+    return await buildAiMoodcast(input, fallback);
+  } catch (error) {
+    return {
+      ...fallback,
+      note: `${fallback.note} AI 暂时不可用，已切回本地情绪引擎：${error.message}。`,
+    };
+  }
 }
 
 async function getNowContext(url = new URL("http://localhost/api/now")) {
@@ -367,7 +473,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/moodcast") {
     const body = JSON.parse(await readBody(req));
-    sendJson(res, 200, buildMoodcast(body));
+    sendJson(res, 200, await buildMoodcast(body));
     return;
   }
 

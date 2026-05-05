@@ -39,8 +39,12 @@ API key 不要写进前端代码，也不要提交到 GitHub。
 
 ```text
 OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://你的中转站/v1
+OPENAI_MODEL=gpt-4o-mini
 WEATHER_CITY=Shanghai
 ```
+
+如果你用的是兼容 OpenAI 协议的中转服务，保留后端调用方式不变，只要额外设置 `OPENAI_BASE_URL` 即可。不要把 key 写进前端或仓库文件。
 
 本地开发可以新建 `.env`，但现在项目还没引入 dotenv，所以第一阶段先用平台环境变量。
 

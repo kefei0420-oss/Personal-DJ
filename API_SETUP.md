@@ -124,6 +124,8 @@ WEATHER_CITY=Shanghai
 
 ```text
 OPENAI_API_KEY
+OPENAI_BASE_URL
+OPENAI_MODEL
 ```
 
 后端可以做：
@@ -131,6 +133,12 @@ OPENAI_API_KEY
 ```text
 POST /api/moodcast
 ```
+
+兼容方式：
+
+- 官方 OpenAI：只配 `OPENAI_API_KEY`
+- OpenAI 协议中转：配 `OPENAI_API_KEY` + `OPENAI_BASE_URL`
+- 如中转要求特定模型名，再配 `OPENAI_MODEL`
 
 输入：
 

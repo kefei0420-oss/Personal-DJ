@@ -75,13 +75,35 @@ function renderMoodcast(data) {
   data.songs.forEach((song, index) => {
     const item = document.createElement("li");
     item.className = "song-item";
+    const searchQuery = encodeURIComponent(`${song.title} ${song.artist}`);
+    const neteaseUrl = song.neteaseId
+      ? `https://music.163.com/song?id=${encodeURIComponent(song.neteaseId)}`
+      : `https://music.163.com/#/search/m/?s=${searchQuery}&type=1`;
     item.innerHTML = `
       <span class="queue-index">${String(index + 1).padStart(2, "0")}</span>
-      <div>
+      <div class="song-copy">
         <p class="queue-title">${song.title}</p>
         <div class="queue-meta">${song.artist} · ${song.lang} · ${song.reason}</div>
       </div>
+      <a class="song-link" href="${neteaseUrl}" target="_blank" rel="noreferrer">网易云播放</a>
     `;
+    item.querySelector(".song-link")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    item.querySelector(".song-copy")?.addEventListener("click", () => {
+      window.open(neteaseUrl, "_blank", "noopener,noreferrer");
+    });
+    item.querySelector(".song-copy")?.setAttribute("role", "button");
+    item.querySelector(".song-copy")?.setAttribute("tabindex", "0");
+    item.querySelector(".song-copy")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        window.open(neteaseUrl, "_blank", "noopener,noreferrer");
+      }
+    });
+    item.insertAdjacentHTML("beforeend", `
+      <span class="song-source">NetEase</span>
+    `);
     els.songList.appendChild(item);
   });
 }

@@ -555,14 +555,30 @@ textarea:focus {
 
 .song-item {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px 14px;
   align-items: center;
   min-height: 68px;
   padding: 11px 12px;
   border: 1px solid rgba(153,149,176,.12);
   border-radius: 8px;
   background: var(--surface-soft);
+}
+
+.song-copy {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.song-copy:hover .queue-title,
+.song-copy:focus-visible .queue-title {
+  color: var(--mint);
+}
+
+.song-copy:focus-visible {
+  outline: 1px solid rgba(130,241,191,.38);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .queue-index {
@@ -584,6 +600,39 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.song-link,
+.song-source {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.song-link {
+  padding: 0 12px;
+  border: 1px solid rgba(130,241,191,.28);
+  color: var(--mint);
+  text-decoration: none;
+  background: rgba(130,241,191,.06);
+}
+
+.song-link:hover {
+  border-color: rgba(130,241,191,.46);
+  background: rgba(130,241,191,.1);
+}
+
+.song-source {
+  display: none;
+  padding: 0 9px;
+  border: 1px solid rgba(153,149,176,.16);
+  color: var(--muted);
+  background: rgba(255,255,255,.03);
 }
 
 @media (max-width: 680px) {
@@ -628,6 +677,15 @@ textarea:focus {
   .advice-grid,
   .sound-console {
     grid-template-columns: 1fr;
+  }
+
+  .song-item {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .song-link {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .sound-toggle {
